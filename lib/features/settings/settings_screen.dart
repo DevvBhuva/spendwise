@@ -1,111 +1,45 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 
-import '../../data/repositories/transaction_repository.dart';
-import '../../utils/export_csv.dart';
-import '../../utils/export_pdf.dart';
-import '../../utils/backup_service.dart';
+import 'backup/backup_settings_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final repo = TransactionRepository();
-    final backupService = BackupService();
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('More'),
+        title: const Text('Settings'),
       ),
-      body: GridView.count(
-        crossAxisCount: 3,
-        padding: const EdgeInsets.all(24),
+      body: ListView(
         children: [
-          /// 📤 EXPORT CSV
-          _SettingItem(
-            icon: Icons.table_chart,
-            label: 'Export CSV',
-            onTap: () async {
-              final data = await repo.getAllTransactions();
-              await CsvExporter.exportTransactions(data);
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('CSV exported successfully'),
+          ListTile(
+            leading: const Icon(Icons.backup),
+            title: const Text('Backup & Restore'),
+            subtitle: const Text('Google Drive backup'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const BackupSettingsScreen(),
                 ),
               );
             },
           ),
 
-          /// 📄 EXPORT PDF
-          _SettingItem(
-            icon: Icons.picture_as_pdf,
-            label: 'Export PDF',
-            onTap: () async {
-              final data = await repo.getAllTransactions();
-              final file = await PdfExporter.exportTransactions(data);
+          const Divider(),
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('PDF saved:\n${file.path}'),
-                ),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('About'),
+            subtitle: const Text('SpendWise'),
+            onTap: () {
+              showAboutDialog(
+                context: context,
+                applicationName: 'SpendWise',
+                applicationVersion: '1.0.0',
               );
             },
-          ),
-
-          /// 💾 BACKUP (JSON)
-          _SettingItem(
-            icon: Icons.backup,
-            label: 'Backup',
-            onTap: () async {
-              final File? file = await backupService.exportBackup();
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    file == null
-                        ? 'Backup completed'
-                        : 'Backup saved:\n${file.path}',
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/* ================= ITEM ================= */
-
-class _SettingItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _SettingItem({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: onTap,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 34, color: Colors.redAccent),
-          const SizedBox(height: 10),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontWeight: FontWeight.w500),
           ),
         ],
       ),

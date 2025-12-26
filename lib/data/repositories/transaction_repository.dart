@@ -29,7 +29,7 @@ class TransactionRepository {
   }
 
   /* ================= FILTER BY MONTH ================= */
-  /// ✅ FIXES MONTHLY TAB
+
   Future<List<TransactionModel>> getByMonth(int year, int month) async {
     final database = await _db.database;
 
@@ -69,7 +69,7 @@ class TransactionRepository {
   }
 
   /// Used before restoring backup
-  Future<void> clearAll() async {
+  Future<void> clearAllTransactions() async {
     final database = await _db.database;
     await database.delete('transactions');
   }

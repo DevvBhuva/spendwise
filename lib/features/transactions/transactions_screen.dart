@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
+
 import 'add_transaction_screen.dart';
 import '../reports/reports_screen.dart';
+import '../settings/backup/backup_settings_screen.dart';
+
 import '../../utils/currency_formatter.dart';
 import '../../utils/export_csv.dart';
 import '../../utils/export_pdf.dart';
-import '../../utils/backup_service.dart';
 import '../../data/repositories/transaction_repository.dart';
 import '../../data/models/transaction_model.dart';
-import 'package:share_plus/share_plus.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -19,19 +21,18 @@ class TransactionsScreen extends StatefulWidget {
 class _TransactionsScreenState extends State<TransactionsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  late DateTime _currentMonth;
 
   final TransactionRepository _repository = TransactionRepository();
-  final BackupService _backupService = BackupService();
-
   List<TransactionModel> _transactions = [];
+
+  DateTime _selectedDate = DateTime.now();
+  DateTime _selectedMonth = DateTime.now();
 
   final tabs = const ['Daily', 'Calendar', 'Monthly', 'Total', 'Note'];
 
   @override
   void initState() {
     super.initState();
-    _currentMonth = DateTime.now();
     _tabController = TabController(length: tabs.length, vsync: this);
     _loadTransactions();
   }
@@ -46,92 +47,72 @@ class _TransactionsScreenState extends State<TransactionsScreen>
     _loadTransactions();
   }
 
-  String _monthName(int m) {
-    const months = [
-      'Jan','Feb','Mar','Apr','May','Jun',
-      'Jul','Aug','Sep','Oct','Nov','Dec'
-    ];
-    return months[m - 1];
-  }
-
   /* ================= MORE MENU ================= */
 
   void _openMoreMenu() {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      builder: (_) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _MoreItem(
+            icon: Icons.upload_file,
+            label: 'Export to CSV',
+            onTap: () async {
+              Navigator.pop(context);
+              await CsvExporter.exportTransactions(_transactions);
+            },
+          ),
+          _MoreItem(
+            icon: Icons.picture_as_pdf,
+            label: 'Export to PDF',
+            onTap: () async {
+              Navigator.pop(context);
+              final file =
+                  await PdfExporter.exportTransactions(_transactions);
+              await Share.shareXFiles([XFile(file.path)]);
+            },
+          ),
+          _MoreItem(
+            icon: Icons.backup,
+            label: 'Backup',
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const BackupSettingsScreen(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
-      builder: (_) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _MoreItem(
-              icon: Icons.upload_file,
-              label: 'Export to CSV',
-              onTap: () async {
-                Navigator.pop(context);
-                await CsvExporter.exportTransactions(_transactions);
-                _toast('CSV exported successfully');
-              },
-            ),
-            _MoreItem(
-              icon: Icons.picture_as_pdf,
-              label: 'Export to PDF',
-              onTap: () async {
-                Navigator.pop(context);
-
-                /// ✅ Generate PDF
-                final file =
-                    await PdfExporter.exportTransactions(_transactions);
-
-                /// ✅ Share PDF directly
-                await Share.shareXFiles(
-                  [XFile(file.path)],
-                  text: 'My SpendWise transactions',
-                );
-              },
-            ),
-            _MoreItem(
-              icon: Icons.backup,
-              label: 'Backup',
-              onTap: () async {
-                Navigator.pop(context);
-                await _backupService.exportBackup();
-                _toast('Backup created');
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        );
-      },
     );
   }
 
-  void _toast(String msg) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
+  /* ================= FILTER HELPERS ================= */
+
+  List<TransactionModel> _byDate(DateTime d) {
+    return _transactions.where((t) =>
+        t.date.year == d.year &&
+        t.date.month == d.month &&
+        t.date.day == d.day).toList();
   }
+
+  List<TransactionModel> _byMonth(DateTime m) {
+    return _transactions.where((t) =>
+        t.date.year == m.year &&
+        t.date.month == m.month).toList();
+  }
+
+  /* ================= UI ================= */
 
   @override
   Widget build(BuildContext context) {
-    final income = _transactions
-        .where((t) =>
-            t.type == 'income' &&
-            t.date.month == _currentMonth.month &&
-            t.date.year == _currentMonth.year)
-        .fold(0.0, (s, t) => s + t.amount);
-
-    final expense = _transactions
-        .where((t) =>
-            t.type != 'income' &&
-            t.date.month == _currentMonth.month &&
-            t.date.year == _currentMonth.year)
-        .fold(0.0, (s, t) => s + t.amount);
-
     return Scaffold(
       appBar: AppBar(
-        title: Text('${_monthName(_currentMonth.month)} ${_currentMonth.year}'),
+        title: const Text('SpendWise'),
         actions: [
           IconButton(
             icon: const Icon(Icons.pie_chart_outline),
@@ -156,92 +137,110 @@ class _TransactionsScreenState extends State<TransactionsScreen>
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.redAccent,
         onPressed: () async {
-          final result = await Navigator.push(
+          final res = await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (_) => const AddTransactionScreen(),
             ),
           );
-          if (result == true) _loadTransactions();
+          if (res == true) _loadTransactions();
         },
         child: const Icon(Icons.add),
       ),
-      body: Column(
+      body: TabBarView(
+        controller: _tabController,
         children: [
-          _SummaryBar(
-            income: income,
-            expense: expense,
-            total: income - expense,
+          _TransactionList(
+            list: _byDate(DateTime.now()),
+            onDelete: _delete,
           ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _DailyView(transactions: _transactions, onDelete: _delete),
-                const _EmptyState(),
-                const _EmptyState(),
-                _TotalView(transactions: _transactions),
-                const _EmptyState(),
-              ],
-            ),
+
+          // 📅 CALENDAR
+          Column(
+            children: [
+              ListTile(
+                title: Text(
+                  '${_selectedDate.day}-${_selectedDate.month}-${_selectedDate.year}',
+                ),
+                trailing: const Icon(Icons.calendar_today),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                    initialDate: _selectedDate,
+                  );
+                  if (picked != null) {
+                    setState(() => _selectedDate = picked);
+                  }
+                },
+              ),
+              Expanded(
+                child: _TransactionList(
+                  list: _byDate(_selectedDate),
+                  onDelete: _delete,
+                ),
+              ),
+            ],
           ),
+
+          // 📆 MONTHLY
+          Column(
+            children: [
+              ListTile(
+                title: Text(
+                  '${_selectedMonth.month}-${_selectedMonth.year}',
+                ),
+                trailing: const Icon(Icons.date_range),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                    initialDate: _selectedMonth,
+                  );
+                  if (picked != null) {
+                    setState(() =>
+                        _selectedMonth = DateTime(picked.year, picked.month));
+                  }
+                },
+              ),
+              Expanded(
+                child: _TransactionList(
+                  list: _byMonth(_selectedMonth),
+                  onDelete: _delete,
+                ),
+              ),
+            ],
+          ),
+
+          _TotalView(transactions: _transactions),
+          const _EmptyState(),
         ],
       ),
     );
   }
 }
 
-/* ================= MORE ITEM ================= */
+/* ================= SHARED LIST ================= */
 
-class _MoreItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _MoreItem({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(label),
-      onTap: onTap,
-    );
-  }
-}
-
-/* ================= DAILY ================= */
-
-class _DailyView extends StatelessWidget {
-  final List<TransactionModel> transactions;
+class _TransactionList extends StatelessWidget {
+  final List<TransactionModel> list;
   final Function(TransactionModel) onDelete;
 
-  const _DailyView({
-    required this.transactions,
+  const _TransactionList({
+    required this.list,
     required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
-    final today = DateTime.now();
-
-    final todayTx = transactions.where((t) =>
-        t.date.year == today.year &&
-        t.date.month == today.month &&
-        t.date.day == today.day).toList();
-
-    if (todayTx.isEmpty) return const _EmptyState();
+    if (list.isEmpty) return const _EmptyState();
 
     return ListView(
-      children: todayTx.map((t) {
+      children: list.map((t) {
         final isIncome = t.type == 'income';
-
         return Dismissible(
           key: ValueKey(t.id),
           direction: DismissDirection.endToStart,
@@ -254,9 +253,7 @@ class _DailyView extends StatelessWidget {
           onDismissed: (_) => onDelete(t),
           child: ListTile(
             title: Text(t.category),
-            subtitle: Text(
-              (t.note == null || t.note!.isEmpty) ? '—' : t.note!,
-            ),
+            subtitle: Text(t.note?.isEmpty ?? true ? '—' : t.note!),
             trailing: Text(
               '${isIncome ? '+' : '-'}${CurrencyFormatter.format(t.amount)}',
               style: TextStyle(
@@ -286,11 +283,9 @@ class _TotalView extends StatelessWidget {
     double expense = 0;
 
     for (final t in transactions) {
-      if (t.type == 'income') {
-        income += t.amount;
-      } else {
-        expense += t.amount;
-      }
+      t.type == 'income'
+          ? income += t.amount
+          : expense += t.amount;
     }
 
     return Padding(
@@ -345,45 +340,23 @@ class _TotalCard extends StatelessWidget {
   }
 }
 
-class _SummaryBar extends StatelessWidget {
-  final double income, expense, total;
+class _MoreItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
 
-  const _SummaryBar({
-    required this.income,
-    required this.expense,
-    required this.total,
+  const _MoreItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _SummaryItem('Income', income, Colors.blue),
-        _SummaryItem('Expense', expense, Colors.red),
-        _SummaryItem('Total', total, Colors.white),
-      ],
-    );
-  }
-}
-
-class _SummaryItem extends StatelessWidget {
-  final String label;
-  final double value;
-  final Color color;
-
-  const _SummaryItem(this.label, this.value, this.color);
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          CurrencyFormatter.format(value),
-          style: TextStyle(color: color, fontWeight: FontWeight.bold),
-        ),
-        Text(label, style: const TextStyle(color: Colors.grey)),
-      ],
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(label),
+      onTap: onTap,
     );
   }
 }
