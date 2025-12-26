@@ -3,9 +3,11 @@ import 'add_transaction_screen.dart';
 import '../reports/reports_screen.dart';
 import '../../utils/currency_formatter.dart';
 import '../../utils/export_csv.dart';
+import '../../utils/export_pdf.dart';
 import '../../utils/backup_service.dart';
 import '../../data/repositories/transaction_repository.dart';
 import '../../data/models/transaction_model.dart';
+import 'package:share_plus/share_plus.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -70,15 +72,24 @@ class _TransactionsScreenState extends State<TransactionsScreen>
               onTap: () async {
                 Navigator.pop(context);
                 await CsvExporter.exportTransactions(_transactions);
-                _toast('CSV exported');
+                _toast('CSV exported successfully');
               },
             ),
             _MoreItem(
               icon: Icons.picture_as_pdf,
               label: 'Export to PDF',
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(context);
-                _toast('PDF export coming soon');
+
+                /// ✅ Generate PDF
+                final file =
+                    await PdfExporter.exportTransactions(_transactions);
+
+                /// ✅ Share PDF directly
+                await Share.shareXFiles(
+                  [XFile(file.path)],
+                  text: 'My SpendWise transactions',
+                );
               },
             ),
             _MoreItem(
@@ -122,7 +133,6 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       appBar: AppBar(
         title: Text('${_monthName(_currentMonth.month)} ${_currentMonth.year}'),
         actions: [
-          /// 📊 STATS
           IconButton(
             icon: const Icon(Icons.pie_chart_outline),
             onPressed: () {
@@ -134,8 +144,6 @@ class _TransactionsScreenState extends State<TransactionsScreen>
               );
             },
           ),
-
-          /// ⋮ MORE
           IconButton(
             icon: const Icon(Icons.more_vert),
             onPressed: _openMoreMenu,
@@ -147,7 +155,6 @@ class _TransactionsScreenState extends State<TransactionsScreen>
           tabs: tabs.map((t) => Tab(text: t)).toList(),
         ),
       ),
-
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.redAccent,
         onPressed: () async {
@@ -161,7 +168,6 @@ class _TransactionsScreenState extends State<TransactionsScreen>
         },
         child: const Icon(Icons.add),
       ),
-
       body: Column(
         children: [
           _SummaryBar(
@@ -174,10 +180,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
               controller: _tabController,
               children: [
                 _DailyView(transactions: _transactions, onDelete: _delete),
-                _CalendarView(
-                  currentMonth: _currentMonth,
-                  transactions: _transactions,
-                ),
+                const _EmptyState(),
                 const _EmptyState(),
                 _TotalView(transactions: _transactions),
                 const _EmptyState(),
@@ -265,23 +268,6 @@ class _DailyView extends StatelessWidget {
         );
       }).toList(),
     );
-  }
-}
-
-/* ================= CALENDAR ================= */
-
-class _CalendarView extends StatelessWidget {
-  final DateTime currentMonth;
-  final List<TransactionModel> transactions;
-
-  const _CalendarView({
-    required this.currentMonth,
-    required this.transactions,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return const _EmptyState();
   }
 }
 
