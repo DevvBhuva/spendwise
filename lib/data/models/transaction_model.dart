@@ -1,64 +1,47 @@
 class TransactionModel {
   final int? id;
   final double amount;
-
-  /// 'income' | 'expense' | 'transfer'
-  final String type;
-
-  /// Used for income / expense
-  final int? categoryId;
-
-  /// Used for income / expense
-  final int? accountId;
-
-  /// Used for transfer
-  final int? fromAccountId;
-  final int? toAccountId;
-
+  final String type; // income / expense
+  final String category;
+  final String paymentWay;
   final String? note;
-  final int date;
+  final DateTime date;
 
   TransactionModel({
     this.id,
     required this.amount,
     required this.type,
-    this.categoryId,
-    this.accountId,
-    this.fromAccountId,
-    this.toAccountId,
+    required this.category,
+    required this.paymentWay,
     this.note,
     required this.date,
   });
 
-  // ================================
-  // TO MAP
-  // ================================
-  Map<String, dynamic> toMap() => {
-        'id': id,
-        'amount': amount,
-        'type': type,
-        'category_id': categoryId,
-        'account_id': accountId,
-        'from_account_id': fromAccountId,
-        'to_account_id': toAccountId,
-        'note': note,
-        'date': date,
-      };
+  /* ================= MAP → MODEL ================= */
 
-  // ================================
-  // FROM MAP
-  // ================================
   factory TransactionModel.fromMap(Map<String, dynamic> map) {
     return TransactionModel(
       id: map['id'] as int?,
       amount: (map['amount'] as num).toDouble(),
-      type: map['type'] as String,
-      categoryId: map['category_id'] as int?,
-      accountId: map['account_id'] as int?,
-      fromAccountId: map['from_account_id'] as int?,
-      toAccountId: map['to_account_id'] as int?,
-      note: map['note'] as String?,
-      date: map['date'] as int,
+      type: map['type'],
+      category: map['category'],
+      paymentWay: map['payment_way'],
+      note: map['note'],
+      date: DateTime.fromMillisecondsSinceEpoch(map['date']),
     );
+  }
+
+  /* ================= MODEL → MAP ================= */
+  /// ✅ THIS FIXES YOUR ERROR
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'amount': amount,
+      'type': type,
+      'category': category,
+      'payment_way': paymentWay,
+      'note': note,
+      'date': date.millisecondsSinceEpoch,
+    };
   }
 }

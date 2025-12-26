@@ -12,74 +12,163 @@ class AccountsScreen extends StatelessWidget {
           Icon(Icons.bar_chart),
           SizedBox(width: 12),
           Icon(Icons.more_vert),
-          SizedBox(width: 12),
+          SizedBox(width: 8),
         ],
       ),
-      body: ListView(
-        children: const [
-          _AccountSummary(),
-          _AccountTile(title: 'Cash', amount: '₹ 0.00'),
-          _AccountTile(title: 'Accounts', amount: '₹ 0.00'),
-          _AccountTile(title: 'Card', amount: '₹ 0.00'),
+      body: Column(
+        children: [
+          const _TopSummary(),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView(
+              children: const [
+                _SectionHeader('Cash'),
+                _SimpleAccountTile(title: 'Cash'),
+
+                _SectionHeader('Accounts'),
+                _SimpleAccountTile(title: 'Accounts'),
+
+                _SectionHeader('Card'),
+                _CardHeader(),
+                _CardAccountTile(title: 'Card'),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _AccountSummary extends StatelessWidget {
-  const _AccountSummary();
+/* ================= TOP SUMMARY ================= */
+
+class _TopSummary extends StatelessWidget {
+  const _TopSummary();
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(vertical: 14),
       color: Colors.black26,
       child: const Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _Summary(label: 'Assets', value: '0.00', color: Colors.blue),
-          _Summary(label: 'Liabilities', value: '0.00', color: Colors.red),
-          _Summary(label: 'Total', value: '0.00', color: Colors.white),
+          _SummaryItem('Assets', '₹ 0.00', Colors.blue),
+          _SummaryItem('Liabilities', '₹ 0.00', Colors.red),
+          _SummaryItem('Total', '₹ 0.00', Colors.white),
         ],
       ),
     );
   }
 }
 
-class _Summary extends StatelessWidget {
+class _SummaryItem extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
 
-  const _Summary({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
+  const _SummaryItem(this.label, this.value, this.color);
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(value, style: TextStyle(color: color, fontSize: 16)),
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 4),
         Text(label, style: const TextStyle(color: Colors.grey)),
       ],
     );
   }
 }
 
-class _AccountTile extends StatelessWidget {
-  final String title;
-  final String amount;
+/* ================= SECTIONS ================= */
 
-  const _AccountTile({required this.title, required this.amount});
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  const _SectionHeader(this.title);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.grey,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
+/* ================= SIMPLE ACCOUNT ================= */
+
+class _SimpleAccountTile extends StatelessWidget {
+  final String title;
+  const _SimpleAccountTile({required this.title});
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
       title: Text(title),
-      trailing: Text(amount),
+      trailing: const Text(
+        '₹ 0.00',
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+}
+
+/* ================= CARD ACCOUNT ================= */
+
+class _CardHeader extends StatelessWidget {
+  const _CardHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: const [
+          Text('Balance Payable', style: TextStyle(color: Colors.grey)),
+          Text('Outst. Balance', style: TextStyle(color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+}
+
+class _CardAccountTile extends StatelessWidget {
+  final String title;
+  const _CardAccountTile({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      title: Text(title),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: const [
+          Text(
+            '₹ 0.00',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          SizedBox(width: 32),
+          Text(
+            '₹ 0.00',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
     );
   }
 }

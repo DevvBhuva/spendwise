@@ -1,182 +1,76 @@
-import '../../core/database/app_database.dart';
+import '../db/app_database.dart';
 import '../models/transaction_model.dart';
-import 'package:sqflite/sqflite.dart';
 
 class TransactionRepository {
-  final AppDatabase _db = AppDatabase.instance;
+  final _db = AppDatabase.instance;
 
-  // ================================
-  // CREATE TRANSACTION (income/expense)
-  // ================================
-  Future<void> create(TransactionModel transaction) async {
-    final db = await _db.database;
+  /* ================= INSERT ================= */
 
-    await db.transaction((txn) async {
-      // 1️⃣ Insert transaction
-      await txn.insert(
-        'transactions',
-        transaction.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+  Future<void> insertTransaction(TransactionModel tx) async {
+    final database = await _db.database;
 
-      // 2️⃣ Calculate balance change
-      final double delta =
-          transaction.type == 'income'
-              ? transaction.amount
-              : -transaction.amount;
-
-      // 3️⃣ Update account balance
-      await txn.rawUpdate(
-        '''
-        UPDATE accounts
-        SET balance = balance + ?
-        WHERE id = ?
-        ''',
-        [delta, transaction.accountId],
-      );
-    });
-  }
-
-  // ================================
-  // GET ALL TRANSACTIONS
-  // ================================
-  Future<List<TransactionModel>> getAll() async {
-    final db = await _db.database;
-    final result =
-        await db.query('transactions', orderBy: 'date DESC');
-    return result.map(TransactionModel.fromMap).toList();
-  }
-
-  // ================================
-  // TOTAL INCOME
-  // ================================
-  Future<double> totalIncome() async {
-    final db = await _db.database;
-    final result = await db.rawQuery(
-      "SELECT SUM(amount) as total FROM transactions WHERE type='income'",
-    );
-    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
-  }
-
-  // ================================
-  // TOTAL EXPENSE
-  // ================================
-  Future<double> totalExpense() async {
-    final db = await _db.database;
-    final result = await db.rawQuery(
-      "SELECT SUM(amount) as total FROM transactions WHERE type='expense'",
-    );
-    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
-  }
-
-  // ================================
-  // CATEGORY-WISE EXPENSE (Pie Chart Base)
-  // ================================
-  Future<List<Map<String, dynamic>>> categoryWiseTotals() async {
-    final db = await _db.database;
-    return db.rawQuery('''
-      SELECT c.name, SUM(t.amount) as total
-      FROM transactions t
-      JOIN categories c ON t.category_id = c.id
-      WHERE t.type = 'expense'
-      GROUP BY c.id
-    ''');
-  }
-
-  // ================================
-  // FILTER BY DATE
-  // ================================
-  Future<List<TransactionModel>> filterByDate(
-    int startDate,
-    int endDate,
-  ) async {
-    final db = await _db.database;
-    final result = await db.query(
+    await database.insert(
       'transactions',
-      where: 'date BETWEEN ? AND ?',
-      whereArgs: [startDate, endDate],
+      tx.toMap(),
+    );
+  }
+
+  /* ================= GET ALL ================= */
+
+  Future<List<TransactionModel>> getAllTransactions() async {
+    final database = await _db.database;
+
+    final result = await database.query(
+      'transactions',
       orderBy: 'date DESC',
     );
+
     return result.map(TransactionModel.fromMap).toList();
   }
 
-  // ================================
-  // FILTER BY ACCOUNT
-  // ================================
-  Future<List<TransactionModel>> filterByAccount(int accountId) async {
-    final db = await _db.database;
-    final result = await db.query(
+  /* ================= FILTER BY MONTH ================= */
+  /// ✅ FIXES MONTHLY TAB
+  Future<List<TransactionModel>> getByMonth(int year, int month) async {
+    final database = await _db.database;
+
+    final start =
+        DateTime(year, month, 1).millisecondsSinceEpoch;
+    final end =
+        DateTime(year, month + 1, 1).millisecondsSinceEpoch;
+
+    final result = await database.query(
       'transactions',
-      where: 'account_id = ?',
-      whereArgs: [accountId],
+      where: 'date >= ? AND date < ?',
+      whereArgs: [start, end],
       orderBy: 'date DESC',
     );
+
     return result.map(TransactionModel.fromMap).toList();
   }
 
-  // ================================
-  // DELETE TRANSACTION (balance-safe)
-  // ================================
-  Future<void> delete(TransactionModel transaction) async {
-    final db = await _db.database;
+  /* ================= DELETE ================= */
 
-    await db.transaction((txn) async {
-      // 1️⃣ Reverse balance impact
-      final double delta =
-          transaction.type == 'income'
-              ? -transaction.amount
-              : transaction.amount;
+  Future<void> deleteTransaction(int id) async {
+    final database = await _db.database;
 
-      await txn.rawUpdate(
-        '''
-        UPDATE accounts
-        SET balance = balance + ?
-        WHERE id = ?
-        ''',
-        [delta, transaction.accountId],
-      );
-
-      // 2️⃣ Delete transaction
-      await txn.delete(
-        'transactions',
-        where: 'id = ?',
-        whereArgs: [transaction.id],
-      );
-    });
+    await database.delete(
+      'transactions',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
-  // ================================
-  // TRANSFER BETWEEN ACCOUNTS
-  // ================================
-  Future<void> transfer({
-    required int fromAccountId,
-    required int toAccountId,
-    required double amount,
-    required int date,
-  }) async {
-    final db = await _db.database;
+  /* ================= BACKUP SUPPORT ================= */
 
-    await db.transaction((txn) async {
-      // 1️⃣ Insert transfer transaction
-      await txn.insert('transactions', {
-        'type': 'transfer',
-        'from_account_id': fromAccountId,
-        'to_account_id': toAccountId,
-        'amount': amount,
-        'date': date,
-      });
+  /// Used while restoring JSON backup
+  Future<void> insertFromMap(Map<String, dynamic> map) async {
+    final database = await _db.database;
+    await database.insert('transactions', map);
+  }
 
-      // 2️⃣ Debit source account
-      await txn.rawUpdate(
-        'UPDATE accounts SET balance = balance - ? WHERE id = ?',
-        [amount, fromAccountId],
-      );
-
-      // 3️⃣ Credit destination account
-      await txn.rawUpdate(
-        'UPDATE accounts SET balance = balance + ? WHERE id = ?',
-        [amount, toAccountId],
-      );
-    });
+  /// Used before restoring backup
+  Future<void> clearAll() async {
+    final database = await _db.database;
+    await database.delete('transactions');
   }
 }
