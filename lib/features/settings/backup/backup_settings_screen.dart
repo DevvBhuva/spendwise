@@ -1,9 +1,4 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import '../../../utils/backup_service.dart';
 
 enum BackupFrequency { daily, weekly, monthly, manual }
@@ -21,87 +16,124 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
   bool _loading = false;
 
   @override
-  void initState() {
-    super.initState();
-    _loadFrequency();
-  }
-
-  Future<void> _loadFrequency() async {
-    final prefs = await SharedPreferences.getInstance();
-    final value = prefs.getString('backup_frequency');
-    if (value != null) {
-      setState(() {
-        _frequency =
-            BackupFrequency.values.firstWhere((e) => e.name == value);
-      });
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Backup Settings')),
-      body: Padding(
+      appBar: AppBar(
+        title: const Text('Backup Settings'),
+      ),
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ─────────────────────────────
+            // BACKUP FREQUENCY
+            // ─────────────────────────────
             const Text(
               'Backup Frequency',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
+            const Text(
+              'Choose how often your data should be backed up automatically.',
+              style: TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
 
-            ...BackupFrequency.values.map(
-              (f) => RadioListTile(
-                value: f,
-                groupValue: _frequency,
-                title: Text(_label(f)),
-                onChanged: (v) async {
-                  setState(() => _frequency = v!);
-                  final prefs =
-                      await SharedPreferences.getInstance();
-                  await prefs.setString('backup_frequency', v!.name);
-
-                },
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade400),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<BackupFrequency>(
+                  value: _frequency,
+                  isExpanded: true,
+                  items: BackupFrequency.values.map((f) {
+                    return DropdownMenuItem(
+                      value: f,
+                      child: Text(_label(f)),
+                    );
+                  }).toList(),
+                  onChanged: (v) {
+                    setState(() => _frequency = v!);
+                  },
+                ),
               ),
             ),
 
-            const SizedBox(height: 16),
-            const Text(
-              'Google Account',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-
-            ListTile(
-              title: Text(_email ?? 'Choose Google account'),
-              trailing: _loading
-                  ? const CircularProgressIndicator()
-                  : const Icon(Icons.chevron_right),
-              onTap: _loading ? null : _selectAccount,
-            ),
-
             const SizedBox(height: 24),
-            const Divider(),
 
+            // ─────────────────────────────
+            // GOOGLE ACCOUNT
+            // ─────────────────────────────
+            const Text(
+              'Google Drive Account',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Select the Google account where backups will be stored.',
+              style: TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: Colors.grey.shade300),
+              ),
+              child: ListTile(
+                leading: const Icon(Icons.account_circle, size: 30),
+                title: Text(_email ?? 'Choose Google account'),
+                trailing: _loading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.chevron_right),
+                onTap: _loading ? null : _selectAccount,
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            // ─────────────────────────────
+            // BACKUP BUTTON
+            // ─────────────────────────────
             SizedBox(
               width: double.infinity,
+              height: 52,
               child: ElevatedButton.icon(
-                icon: const Icon(Icons.backup),
-                label: const Text('Backup Now'),
+                icon: const Icon(Icons.cloud_upload),
+                label: const Text(
+                  'BACKUP NOW',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
                 onPressed: _loading ? null : _backupNow,
               ),
             ),
 
             const SizedBox(height: 12),
 
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.restore),
-                label: const Text('Restore Backup'),
-                onPressed: _loading ? null : _restoreBackup,
+            Center(
+              child: Text(
+                'Your backup will be saved securely in Google Drive',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
               ),
             ),
           ],
@@ -109,6 +141,10 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
       ),
     );
   }
+
+  // ─────────────────────────────────────
+  // HELPERS
+  // ─────────────────────────────────────
 
   String _label(BackupFrequency f) {
     switch (f) {
@@ -123,8 +159,13 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
     }
   }
 
+  // ─────────────────────────────────────
+  // GOOGLE ACCOUNT
+  // ─────────────────────────────────────
+
   Future<void> _selectAccount() async {
     setState(() => _loading = true);
+
     try {
       final email = await BackupService.signIn();
       if (email == null) return;
@@ -132,21 +173,32 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
       await BackupService.getOrCreateFolder();
       setState(() => _email = email);
 
-      _toast('Google Drive connected');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Google Drive connected')),
+      );
     } catch (e) {
-      _toast('Error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
     } finally {
       setState(() => _loading = false);
     }
   }
 
+  // ─────────────────────────────────────
+  // BACKUP FLOW
+  // ─────────────────────────────────────
+
   Future<void> _backupNow() async {
     if (_email == null) {
-      _toast('Please select Google account first');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a Google account first')),
+      );
       return;
     }
 
     setState(() => _loading = true);
+
     try {
       final json = await BackupService.generateJsonBackup();
       final file =
@@ -158,36 +210,15 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
         folderId: folderId,
       );
 
-      _toast('Backup uploaded successfully');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Backup uploaded successfully')),
+      );
     } catch (e) {
-      _toast('Backup failed: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Backup failed: $e')),
+      );
     } finally {
       setState(() => _loading = false);
     }
-  }
-
-  Future<void> _restoreBackup() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['mmbak'],
-    );
-    if (result == null) return;
-
-    setState(() => _loading = true);
-    try {
-      final file = File(result.files.single.path!);
-      final count =
-          await BackupService.restoreFromBackup(file);
-      _toast('Restored $count transactions');
-    } catch (e) {
-      _toast('Restore failed: $e');
-    } finally {
-      setState(() => _loading = false);
-    }
-  }
-
-  void _toast(String msg) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
   }
 }
